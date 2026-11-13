@@ -577,7 +577,7 @@ form details.mais summary::after{font-size:1.4rem;right:4px}
 
     <div class="form">
       <h3>Conte sobre o seu imóvel</h3>
-      <p class="sub" id="sub">Preencha, copie a mensagem e envie para o nosso e-mail. Ou use o formulário completo.</p>
+      <p class="sub" id="sub">Preencha e envie. Nossa equipe retorna pelo WhatsApp para agendar a avaliação.</p>
       <form id="f" novalidate>
         <input type="hidden" id="pacote" name="pacote" value="">
         <div class="pack-nota" id="pacote-nota" hidden></div>
@@ -598,21 +598,13 @@ form details.mais summary::after{font-size:1.4rem;right:4px}
         <div class="hp" aria-hidden="true"><label for="site">Não preencha</label><input id="site" name="site" tabindex="-1" autocomplete="off"></div>
         <div class="chk"><input id="consent" name="consent" type="checkbox"><label for="consent">Autorizo a Hospedaris a usar meus dados para entrar em contato e elaborar a avaliação, conforme a <a href="privacidade.html">Política de privacidade</a>.</label></div>
         <p class="errmsg" id="ferr" role="alert"></p>
-        <button class="btn btn-primary" type="submit" id="go">Montar minha mensagem</button>
-        <p class="priv" id="priv">Estes dados ficam só nesta página, no seu navegador, até você enviá-los. Usamos para responder ao seu pedido de avaliação.</p>
+        <button class="btn btn-primary" type="submit" id="go">Enviar pedido</button>
+        <p class="priv" id="priv">Usamos seus dados apenas para responder a este pedido de avaliação.</p>
       </form>
 
       <div class="resultado sent" id="sent" aria-live="polite"></div>
 
-      <div class="resultado" id="res" aria-live="polite">
-        <p>Mensagem pronta. Copie e envie para <b>contato@hospedaris.com.br</b>.</p>
-        <textarea id="out" readonly aria-label="Mensagem para enviar"></textarea>
-        <div class="acoes">
-          <button class="btn btn-primary" type="button" id="cp">Copiar mensagem</button>
-          <a class="btn btn-ghost" href="https://docs.google.com/forms/d/e/1FAIpQLSf3aHg4gI_qBRgwoTTPLpc9bdnsgj9F97js35O2E4UHMOsOAg/viewform?pli=1">Abrir formulário completo</a>
-        </div>
-        <div class="ok" id="ok"></div>
-      </div>
+      
     </div>
   </div>
 </section>
@@ -657,14 +649,15 @@ form details.mais summary::after{font-size:1.4rem;right:4px}
 <script>
 (function(){
   // CONFIGURAÇÃO
-  var ENDPOINT='';   // URL do Google Apps Script (termina em /exec). Vazia = modo "montar mensagem".
+  var ENDPOINT='';   // URL do Google Apps Script (termina em /exec): grava na planilha e avisa por e-mail.
   var WHATSAPP='';   // WhatsApp corporativo só com números, com DDI e DDD. Ex.: 5547999999999
-  var FORM_COMPLETO='https://docs.google.com/forms/d/e/1FAIpQLSf3aHg4gI_qBRgwoTTPLpc9bdnsgj9F97js35O2E4UHMOsOAg/viewform';
+  var EMAIL_URL='https://formsubmit.co/ajax/contato@hospedaris.com.br'; // usado enquanto ENDPOINT estiver vazio
 
   var $=function(i){return document.getElementById(i)};
   var each=function(l,fn){Array.prototype.forEach.call(l,fn)};
   var q=new URLSearchParams(location.search);
   var ctx={utm_source:q.get('utm_source')||'',utm_medium:q.get('utm_medium')||'',utm_campaign:q.get('utm_campaign')||'',pagina:location.pathname.slice(0,120),referrer:(document.referrer||'').slice(0,200)};
+  var ROTULOS={nome:'Nome',tel:'WhatsApp',cidade:'Cidade',bairro:'Bairro/condomínio',situ:'Situação do imóvel',pacote:'Pacote de interesse',mail:'E-mail',msg:'Observações',origem:'Origem do pedido',utm_source:'utm_source',utm_medium:'utm_medium',utm_campaign:'utm_campaign',pagina:'Página',consent:'Autorização'};
   function track(ev,d){try{(window.dataLayer=window.dataLayer||[]).push(Object.assign({event:ev},d||{}))}catch(e){}}
   function digits(v){return String(v||'').replace(/\D/g,'')}
   function mask(el){el.addEventListener('input',function(){
@@ -677,43 +670,33 @@ form details.mais summary::after{font-size:1.4rem;right:4px}
   function sucesso(el){
     var h='<p><b>Pedido enviado.</b> Nossa equipe entra em contato pelo WhatsApp para agendar a sua avaliação gratuita.</p>';
     if(WHATSAPP)h+='<p><a class="btn btn-ghost" href="'+waLink()+'">Falar agora no WhatsApp</a></p>';
-    h+='<p>Quer agilizar? <a href="'+FORM_COMPLETO+'">Conte mais sobre o imóvel</a>. É opcional.</p>';
     el.innerHTML=h;
   }
+  var FALHA='Não conseguimos enviar agora. Tente de novo ou escreva para contato@hospedaris.com.br.';
   function send(data,ok,fail){
-    var d=new URLSearchParams();
-    Object.keys(data).forEach(function(k){d.append(k,data[k]||'')});
-    Object.keys(ctx).forEach(function(k){d.append(k,ctx[k])});
-    fetch(ENDPOINT,{method:'POST',mode:'no-cors',body:d}).then(ok,fail);
+    var all=Object.assign({},data,ctx);
+    if(ENDPOINT){
+      var d=new URLSearchParams();
+      Object.keys(all).forEach(function(k){d.append(k,all[k]||'')});
+      fetch(ENDPOINT,{method:'POST',mode:'no-cors',body:d}).then(ok,fail);
+      return;
+    }
+    var body={_subject:'Novo pedido de avaliação: '+(all.nome||'')+' ('+(all.cidade||'')+')',_captcha:'false'};
+    if(all.mail)body._replyto=all.mail;
+    Object.keys(ROTULOS).forEach(function(k){if(all[k])body[ROTULOS[k]]=all[k]});
+    fetch(EMAIL_URL,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(body)})
+      .then(function(r){return r.json()})
+      .then(function(j){(j&&(j.success===true||j.success==='true'))?ok():fail();})
+      .catch(fail);
   }
 
-  var f=$('f'),go=$('go'),res=$('res'),sent=$('sent'),out=$('out'),okm=$('ok'),ferr=$('ferr');
+  var f=$('f'),go=$('go'),sent=$('sent'),ferr=$('ferr');
   mask($('tel'));mask($('m-tel'));
-
-  if(ENDPOINT){
-    go.textContent='Enviar pedido';
-    $('sub').textContent='Preencha e envie. Nossa equipe retorna pelo WhatsApp para agendar a avaliação.';
-    $('priv').textContent='Usamos seus dados apenas para responder a este pedido de avaliação.';
-  }
   if(WHATSAPP){
     var w=$('wa');w.href=waLink();w.hidden=false;
     w.addEventListener('click',function(){track('whatsapp_click')});
     var wc=$('wa-contato');wc.textContent='';
     var a=document.createElement('a');a.href=waLink();a.textContent='Falar no WhatsApp';wc.appendChild(a);
-  }
-
-  function mensagem(){
-    var t=['Olá, equipe Hospedaris! Quero uma avaliação gratuita do meu imóvel.','','Nome: '+f.nome.value.trim(),'WhatsApp: '+f.tel.value.trim(),'Cidade: '+f.cidade.value];
-    if(f.bairro.value.trim())t.push('Bairro/condomínio: '+f.bairro.value.trim());
-    if(f.situ.value)t.push('Situação do imóvel: '+f.situ.value);
-    if(f.pacote.value)t.push('Pacote de interesse: '+f.pacote.value);
-    if(f.mail.value.trim())t.push('E-mail: '+f.mail.value.trim());
-    if(f.msg.value.trim())t.push('','Observações: '+f.msg.value.trim());
-    return t.join('\n');
-  }
-  function modoMensagem(aviso){
-    out.value=mensagem();okm.textContent=aviso||'';res.classList.add('on');sent.classList.remove('on');
-    res.scrollIntoView({behavior:'smooth',block:'nearest'});
   }
 
   // Formulário curto (primeira tela)
@@ -726,16 +709,11 @@ form details.mais summary::after{font-size:1.4rem;right:4px}
     var bad=[n,t,c].filter(function(x){return x.classList.contains('err')})[0];
     if(bad){ok.textContent='Confira os campos destacados.';bad.focus();return;}
     ok.textContent='';
-    track('lead_submit',{origem:'hero',cidade:c.value});
-    if(!ENDPOINT){
-      f.nome.value=n.value.trim();f.tel.value=t.value;f.cidade.value=c.value;
-      $('avaliacao').scrollIntoView({behavior:'smooth'});
-      return;
-    }
     b.disabled=true;b.textContent='Enviando...';
+    track('lead_submit',{origem:'hero',cidade:c.value});
     send({nome:n.value.trim(),tel:t.value,cidade:c.value,origem:'hero',consent:'aviso na tela'},
       function(){each(mini.querySelectorAll('.mini-t,.mini-row,.micro,#m-go'),function(x){x.hidden=true});sucesso(ok);},
-      function(){b.disabled=false;b.textContent='Quero minha avaliação gratuita';ok.textContent='Não conseguimos enviar agora. Tente de novo ou escreva para contato@hospedaris.com.br.';});
+      function(){b.disabled=false;b.textContent='Quero minha avaliação gratuita';ok.textContent=FALHA;});
   });
 
   // Formulário completo
@@ -745,19 +723,16 @@ form details.mais summary::after{font-size:1.4rem;right:4px}
     marca(f.nome,!f.nome.value.trim());marca(f.tel,!telOk(f.tel.value));marca(f.cidade,!f.cidade.value);
     var bad=[f.nome,f.tel,f.cidade].filter(function(x){return x.classList.contains('err')})[0];
     if(bad){ferr.textContent='Confira os campos destacados.';bad.focus();return;}
-    ferr.textContent='';
-    if(!ENDPOINT){track('lead_copy',{cidade:f.cidade.value});modoMensagem();return;}
     if(!f.consent.checked){ferr.textContent='Marque a autorização de contato para enviar.';f.consent.focus();return;}
+    ferr.textContent='';
     go.disabled=true;go.textContent='Enviando...';
     track('lead_submit',{origem:'formulario',pacote:f.pacote.value,cidade:f.cidade.value});
     send({nome:f.nome.value.trim(),tel:f.tel.value,mail:f.mail.value.trim(),cidade:f.cidade.value,bairro:f.bairro.value.trim(),situ:f.situ.value,msg:f.msg.value.trim(),pacote:f.pacote.value,origem:'formulario',consent:'sim'},
-      function(){res.classList.remove('on');sucesso(sent);sent.classList.add('on');f.reset();$('pacote-nota').hidden=true;go.disabled=false;go.textContent='Enviar pedido';sent.scrollIntoView({behavior:'smooth',block:'nearest'});},
-      function(){go.disabled=false;go.textContent='Enviar pedido';modoMensagem('Não conseguimos enviar agora. Copie a mensagem e mande para contato@hospedaris.com.br.');});
-  });
-  $('cp').addEventListener('click',function(){
-    function done(m){okm.textContent=m}
-    try{navigator.clipboard.writeText(out.value).then(function(){done('Mensagem copiada.')},function(){out.select();done('Selecione e copie o texto acima.')});}
-    catch(err){out.select();done('Selecione e copie o texto acima.');}
+      function(){
+        each(f.querySelectorAll('.field,.row,details,.chk,.errmsg,.pack-nota,#go,.priv'),function(x){x.hidden=true});
+        sucesso(sent);sent.classList.add('on');sent.scrollIntoView({behavior:'smooth',block:'nearest'});
+      },
+      function(){go.disabled=false;go.textContent='Enviar pedido';ferr.textContent=FALHA;});
   });
 
   // Botões de pacote e rastreio de cliques
