@@ -681,7 +681,7 @@ form details.mais summary::after{font-size:1.4rem;right:4px}
       fetch(ENDPOINT,{method:'POST',mode:'no-cors',body:d}).then(ok,fail);
       return;
     }
-    var body={_subject:'Novo pedido de avaliação: '+(all.nome||'')+' ('+(all.cidade||'')+')',_captcha:'false'};
+    var body={_subject:'Novo pedido de avaliação: '+(all.nome||'')+' ('+(all.cidade||'')+')',_captcha:'false',_template:'table'};
     if(all.mail)body._replyto=all.mail;
     Object.keys(ROTULOS).forEach(function(k){if(all[k])body[ROTULOS[k]]=all[k]});
     fetch(EMAIL_URL,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(body)})
